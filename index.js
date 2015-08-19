@@ -19,23 +19,17 @@ var isatty = process.stdout.isTTY;
 module.exports = dev;
 
 /**
- * Color map.
- */
-
-var colorCodes = {
-  5: 'red',
-  4: 'yellow',
-  3: 'cyan',
-  2: 'green',
-  1: 'green'
-};
-
-/**
  * Development logger.
  */
 
 function dev(opts) {
   return function *logger(next) {
+
+    var theBody
+    if (this.request.body) {
+      theBody = this.request.body
+    }
+
     // request
     var start = new Date;
     console.log('  ' + '<--'
@@ -48,7 +42,7 @@ function dev(opts) {
       yield next;
     } catch (err) {
       // log uncaught downstream errors
-      log(this, start, null, err);
+      log(this, start, null, err, null, theBody);
       throw err;
     }
 
@@ -78,7 +72,7 @@ function dev(opts) {
     function done(event){
       res.removeListener('finish', onfinish);
       res.removeListener('close', onclose);
-      log(ctx, start, counter ? counter.length : length, null, event);
+      log(ctx, start, counter ? counter.length : length, null, event, theBody);
     }
   }
 }
@@ -87,15 +81,11 @@ function dev(opts) {
  * Log helper.
  */
 
-function log(ctx, start, len, err, event) {
+function log(ctx, start, len, err, event, theBody) {
   // get the status code of the response
   var status = err
     ? (err.status || 500)
     : (ctx.status || 404);
-
-  // set the color of the status code;
-  var s = status / 100 | 0;
-  var color = colorCodes[s];
 
   // get the human readable response length
   var length;
@@ -111,17 +101,18 @@ function log(ctx, start, len, err, event) {
     : event === 'close' ? '-x-'
     : '-->'
 
-  console.log('  ' + upstream
-    + ' ' + '%s'
-    + ' ' + '%s'
-    + ' ' + '%s'
-    + ' ' + '%s'
-    + ' ' + '%s',
-      ctx.method,
-      ctx.originalUrl,
-      status,
-      time(start),
-      length);
+  var msg = '  ' + upstream
+  + ' ' + ctx.method
+  + ' ' + ctx.originalUrl
+  + ' ' + status
+  + ' ' + time(start)
+  + ' ' + length
+
+  msg = status == 500
+    ? msg + ' ' + JSON.stringify({request: ctx.request, body: theBody})
+    : msg
+
+  console.log(msg)
 }
 
 /**
